@@ -252,4 +252,9 @@ app.use('/api/admin', admin);
 // Last-resort handler: never send stack traces (malformed JSON, oversized bodies)
 app.use((err, req, res, next) => res.status(err.status === 413 ? 413 : 400).json({ error: err.status === 413 ? 'File is too large' : 'Invalid request' }));
 
+const PORT = process.env.PORT || 3001;
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`Digital Heroes API server running on http://localhost:${PORT}`));
+}
+
 module.exports = app;
