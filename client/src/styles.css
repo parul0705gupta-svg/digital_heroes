@@ -28,3 +28,4 @@ input,select{width:100%;padding:.75rem 1rem;margin:.4rem 0;border:1px solid var(
 .tabs{display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0}.tabs button{padding:.5rem 1rem;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}.tabs .on{background:var(--ink);color:var(--bg)}
 .err{color:var(--red);font-weight:600}.ok{color:var(--teal);font-weight:600}footer{padding:2rem 5vw;color:var(--mute);border-top:1px solid var(--line)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+.proof{display:grid;gap:.5rem}

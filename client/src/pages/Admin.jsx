@@ -6,6 +6,7 @@ export default function Admin() {
   const [t, setT] = useState('Users'), [rows, setRows] = useState([]), [rep, setRep] = useState(null), [msg, setMsg] = useState('');
   const [draw, setDraw] = useState(null), [dr, setDr] = useState({ month: new Date().toISOString().slice(0, 7), mode: 'random' }), [nc, setNc] = useState({ name: '', description: '', image_url: '' });
   const run = async fn => { setMsg(''); try { await fn(); } catch (e) { setMsg(e.message); } };
+  const setStatus = (w, body) => run(async () => { await api(`/admin/winners/${w.id}`, 'PATCH', body); load(); });
   const load = () => run(async () => {
     if (t === 'Users') setRows(arr(await api('/admin/users'))); if (t === 'Winners') setRows(arr(await api('/admin/winners')));
     if (t === 'Charities') setRows(arr(await api('/charities'))); if (t === 'Reports') setRep(await api('/admin/reports')); });
@@ -17,8 +18,8 @@ export default function Admin() {
     {t === 'Draws' && <div className="card"><div className="row"><input type="month" value={dr.month} onChange={e => setDr({ ...dr, month: e.target.value })} />
       <select value={dr.mode} onChange={e => setDr({ ...dr, mode: e.target.value })}><option value="random">Random</option><option value="algorithmic">Algorithmic (score frequency)</option></select>
       <button className="btn sm" onClick={() => run(async () => setDraw(await api('/admin/draws/simulate', 'POST', dr)))}>Run simulation</button></div>
-      {draw && <div><div className="balls sm">{(draw.numbers || []).map(n => <span key={n}>{n}</span>)}</div>
-        <p>Pool ₹{Math.round(draw.pool?.total || 0)}. Winners: 5 numbers {draw.pool?.winnerCounts?.[5] ?? 0}, 4 numbers {draw.pool?.winnerCounts?.[4] ?? 0}, 3 numbers {draw.pool?.winnerCounts?.[3] ?? 0}. Jackpot carry ₹{Math.round(draw.jackpot_carry || 0)}.</p>
+      {draw && <div><div className="balls sm">{draw.numbers.map(n => <span key={n}>{n}</span>)}</div>
+        <p>Pool ₹{Math.round(draw.pool.total)}. Winners: 5 numbers {draw.pool.winnerCounts[5]}, 4 numbers {draw.pool.winnerCounts[4]}, 3 numbers {draw.pool.winnerCounts[3]}. Jackpot carry ₹{Math.round(draw.jackpot_carry)}.</p>
         <button className="btn" disabled={draw.status === 'published'} onClick={() => run(async () => { await api(`/admin/draws/${draw.id}/publish`, 'POST'); setDraw({ ...draw, status: 'published' }); })}>{draw.status === 'published' ? 'Published' : 'Publish results'}</button></div>}</div>}
     {t === 'Charities' && <><form className="row" onSubmit={e => { e.preventDefault(); run(async () => { await api('/admin/charities', 'POST', nc); setNc({ name: '', description: '', image_url: '' }); load(); }); }}>
       <input required placeholder="Name" value={nc.name} onChange={e => setNc({ ...nc, name: e.target.value })} /><input placeholder="Description" value={nc.description} onChange={e => setNc({ ...nc, description: e.target.value })} />
@@ -26,11 +27,17 @@ export default function Admin() {
       <ul className="list">{rows.map(c => <li key={c.id}><b>{c.name}</b>
         <button className="link" onClick={() => run(async () => { await api(`/admin/charities/${c.id}`, 'PUT', { featured: !c.featured }); load(); })}>{c.featured ? 'Unfeature' : 'Feature'}</button>
         <button className="link" onClick={() => run(async () => { await api(`/admin/charities/${c.id}`, 'DELETE'); load(); })}>Delete</button></li>)}</ul></>}
-    {t === 'Winners' && <ul className="list">{rows.map(w => <li key={w.id}><b>{w.profiles?.full_name || w.profiles?.email}</b> <span>{w.draws?.month}: {w.tier} numbers, ₹{w.amount}</span> <span>{w.verification} / {w.payment}</span>
-      {w.proof_url && <a href={w.proof_url} target="_blank" rel="noreferrer">View proof</a>}
-      {['approved', 'rejected'].map(v => <button key={v} className="link" onClick={() => run(async () => { await api(`/admin/winners/${w.id}`, 'PATCH', { verification: v }); load(); })}>{v === 'approved' ? 'Approve' : 'Reject'}</button>)}
-      {w.verification === 'approved' && w.payment === 'pending' && <button className="link" onClick={() => run(async () => { await api(`/admin/winners/${w.id}`, 'PATCH', { payment: 'paid' }); load(); })}>Mark paid</button>}</li>)}</ul>}
-    {t === 'Reports' && rep && <div className="grid two"><div className="card"><h3>Total users</h3><p className="price">{rep.totalUsers ?? 0}</p></div><div className="card"><h3>Monthly prize pool</h3><p className="price">₹{Math.round(rep.monthlyPrizePool || 0)}</p></div>
-      <div className="card"><h3>Charity donations</h3><p className="price">₹{rep.donations ?? 0}</p></div><div className="card"><h3>Draws run</h3><p className="price">{rep.draws?.length ?? 0}</p></div></div>}
+    {t === 'Winners' && <ul className="list">{rows.map(w => <li key={w.id}><div><b>{w.profiles?.full_name || w.profiles?.email}</b> <span>{w.profiles?.email}</span><br />
+      <span>{w.draws?.month}: {w.tier} numbers, ₹{w.amount}. Proof: {w.verification}. Payout: {w.payment}</span></div>
+      {w.proof_signed && <a href={w.proof_signed} target="_blank" rel="noreferrer"><img src={w.proof_signed} alt="Proof screenshot" style={{ maxWidth: 140, borderRadius: 8 }} /></a>}
+      {w.verification === 'submitted' && <><button className="link" onClick={() => setStatus(w, { verification: 'approved' })}>Approve</button><button className="link" onClick={() => setStatus(w, { verification: 'rejected' })}>Reject</button></>}
+      {w.verification === 'rejected' && <button className="link" onClick={() => setStatus(w, { verification: 'awaiting' })}>Request resubmission</button>}
+      {w.verification === 'approved' && w.payment === 'pending' && <button className="link" onClick={() => setStatus(w, { payment: 'paid' })}>Mark paid</button>}</li>)}
+      {!rows.length && <li>No winners yet. Publish a draw first.</li>}</ul>}
+    {t === 'Reports' && rep && <div className="grid two"><div className="card"><h3>Total users</h3><p className="price">{rep.totalUsers}</p></div><div className="card"><h3>Monthly prize pool</h3><p className="price">₹{Math.round(rep.monthlyPrizePool)}</p></div>
+      <div className="card"><h3>Charity donations</h3><p className="price">₹{rep.donations}</p></div><div className="card"><h3>Draws run</h3><p className="price">{rep.draws.length}</p></div>
+      <div className="card"><h3>Active subscribers</h3><p className="price">{rep.activeSubscribers}</p></div><div className="card"><h3>Charity contributions / month</h3><p className="price">₹{Math.round(rep.charityContributions)}</p></div>
+      <div className="card"><h3>Winners</h3><p className="price">{rep.winnersCount}</p></div><div className="card"><h3>Total payouts</h3><p className="price">₹{rep.totalPayouts}</p></div>
+      <div className="card"><h3>Jackpot rollover</h3><p className="price">₹{Math.round(rep.jackpotRollover)}</p></div></div>}
   </section>);
 }

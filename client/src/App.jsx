@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
 import { sb, api } from './api';
 import Home from './pages/Home'; import Charities from './pages/Charities'; import Pricing from './pages/Pricing';
+import CharityDetail from './pages/CharityDetail';
 import Auth from './pages/Auth'; import Dashboard from './pages/Dashboard'; import Admin from './pages/Admin';
 
 export default function App() {
@@ -20,7 +21,7 @@ export default function App() {
       </nav></header>
     <main>
       <Routes>
-        <Route path="/" element={<Home />} /><Route path="/charities" element={<Charities />} /><Route path="/pricing" element={<Pricing me={me} />} />
+        <Route path="/" element={<Home />} /><Route path="/charities" element={<Charities />} /><Route path="/charities/:id" element={<CharityDetail />} /><Route path="/pricing" element={<Pricing me={me} />} />
         <Route path="/login" element={<Auth mode="login" />} /><Route path="/signup" element={<Auth mode="signup" />} />
         <Route path="/dashboard" element={me ? <Dashboard /> : <Navigate to="/login" />} />
         <Route path="/admin" element={me?.role === 'admin' ? <Admin /> : <Navigate to="/" />} />
