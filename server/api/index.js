@@ -22,7 +22,7 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
   }
   if (ev.type === 'customer.subscription.updated' || ev.type === 'customer.subscription.deleted') {
     const status = ev.type.endsWith('deleted') ? 'cancelled' : o.status === 'active' ? 'active' : 'lapsed';
-    await db.from('subscriptions').update({ status, current_period_end: new Date(o.current_period_end * 1000) }).eq('stripe_sub_id', o.id);
+    await db.from('subscriptions').update({ status, current_period_end: new Date((o.items?.data?.[0]?.current_period_end ?? o.current_period_end) * 1000) }).eq('stripe_sub_id', o.id);
   }
   res.json({ received: true });
 });
@@ -66,7 +66,8 @@ app.post('/api/checkout', auth, wrap(async (req, res) => {
   const plan = req.body.plan === 'yearly' ? 'yearly' : 'monthly';
   const s = await stripe.checkout.sessions.create({
     mode: 'subscription', customer_email: req.user.email,
-    line_items: [{ price: process.env[`STRIPE_PRICE_${plan.toUpperCase()}`], quantity: 1 }],
+    line_items: [{ quantity: 1, price_data: { currency: 'inr', unit_amount: Math.round(+process.env[plan === 'yearly' ? 'YEARLY_PRICE' : 'MONTHLY_PRICE'] * 100),
+      recurring: { interval: plan === 'yearly' ? 'year' : 'month' }, product_data: { name: `Digital Heroes ${plan} plan` } } }],
     metadata: { user_id: req.user.id, plan },
     success_url: `${process.env.CLIENT_URL}/dashboard?paid=1`, cancel_url: `${process.env.CLIENT_URL}/pricing` });
   res.json({ url: s.url });
