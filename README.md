@@ -5,3 +5,4 @@ Two Vercel projects from one repo: `server/` (Express API, Root Directory = serv
 3. Deploy client with `client/.env.example` vars (VITE_API_URL = server URL).
 Assumptions: 50% of each fee funds the prize pool, yearly counts as 1/12 monthly, winner proof is a screenshot link.
 "# digital_heroes" 
+"# digital_heroes" 
