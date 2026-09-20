@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+const arr = x => (Array.isArray(x) ? x : []);
 const tabs = ['Users', 'Draws', 'Charities', 'Winners', 'Reports'];
 export default function Admin() {
   const [t, setT] = useState('Users'), [rows, setRows] = useState([]), [rep, setRep] = useState(null), [msg, setMsg] = useState('');
   const [draw, setDraw] = useState(null), [dr, setDr] = useState({ month: new Date().toISOString().slice(0, 7), mode: 'random' }), [nc, setNc] = useState({ name: '', description: '', image_url: '' });
   const run = async fn => { setMsg(''); try { await fn(); } catch (e) { setMsg(e.message); } };
   const load = () => run(async () => {
-    if (t === 'Users') setRows(await api('/admin/users')); if (t === 'Winners') setRows(await api('/admin/winners'));
-    if (t === 'Charities') setRows(await api('/charities')); if (t === 'Reports') setRep(await api('/admin/reports')); });
+    if (t === 'Users') setRows(arr(await api('/admin/users'))); if (t === 'Winners') setRows(arr(await api('/admin/winners')));
+    if (t === 'Charities') setRows(arr(await api('/charities'))); if (t === 'Reports') setRep(await api('/admin/reports')); });
   useEffect(() => { load(); }, [t]);
   return (<section className="page"><h1>Admin</h1>
     <div className="tabs">{tabs.map(x => <button key={x} className={x === t ? 'on' : ''} onClick={() => setT(x)}>{x}</button>)}</div>

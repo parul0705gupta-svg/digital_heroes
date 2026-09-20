@@ -7,17 +7,9 @@ const { drawNumbers, runDraw } = require('../lib/draw');
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_x');
 const app = express();
-const allowedOrigins = [process.env.CLIENT_URL, 'http://localhost:5173', 'http://localhost:3000'].filter(Boolean);
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
-}));
+// Allow the deployed client and local development
+const allowed = [process.env.CLIENT_URL, 'http://localhost:5173'].filter(Boolean);
+app.use(cors({ origin: (origin, cb) => cb(null, !origin || !process.env.CLIENT_URL || allowed.includes(origin)) }));
 
 // Stripe webhook (raw body): keeps subscription state in sync (renew / cancel / lapse)
 app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -66,7 +58,9 @@ app.post('/api/signup', wrap(async (req, res) => {
 app.get('/api/charities', wrap(async (req, res) => {
   let q = db.from('charities').select('*').order('featured', { ascending: false });
   if (req.query.q) q = q.ilike('name', `%${req.query.q}%`);
-  res.json((await q).data);
+  const { data, error } = await q;
+  if (error) throw error;   // e.g. table missing: shows the real reason instead of null
+  res.json(data);
 }));
 
 app.get('/api/me', auth, (req, res) => res.json({ id: req.user.id, email: req.user.email, full_name: req.user.full_name, role: req.user.role, active: req.user.active }));
@@ -159,12 +153,5 @@ admin.get('/reports', wrap(async (req, res) => {
   res.json({ totalUsers: u.count, monthlyPrizePool: pool, donations: d.data.reduce((a, x) => a + Number(x.amount), 0), draws: w.data });
 }));
 app.use('/api/admin', admin);
-
-const PORT = process.env.PORT || 3001;
-if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Digital Heroes API server running on http://localhost:${PORT}`);
-  });
-}
 
 module.exports = app;

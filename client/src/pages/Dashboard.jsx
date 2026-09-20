@@ -4,7 +4,7 @@ import { api } from '../api';
 export default function Dashboard() {
   const [d, setD] = useState(null), [ch, setCh] = useState([]), [err, setErr] = useState(''), [f, setF] = useState({ score: '', played_on: '' });
   const load = () => api('/dashboard').then(setD).catch(e => setErr(e.message));
-  useEffect(() => { load(); api('/charities').then(setCh); }, []);
+  useEffect(() => { load(); api('/charities').then(l => setCh(Array.isArray(l) ? l : [])); }, []);
   const act = async fn => { setErr(''); try { await fn(); await load(); } catch (e) { setErr(e.message); } };
   if (!d) return <section className="page"><p>{err || 'Loading your dashboard'}</p></section>;
   const sub = d.subscription, active = sub?.status === 'active';

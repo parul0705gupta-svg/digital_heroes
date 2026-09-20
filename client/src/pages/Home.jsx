@@ -6,7 +6,7 @@ import { api } from '../api';
 const balls = [7, 19, 24, 33, 41];
 export default function Home() {
   const [c, setC] = useState(null);
-  useEffect(() => { api('/charities').then(l => setC(l.find(x => x.featured) || l[0])).catch(() => {}); }, []);
+  useEffect(() => { api('/charities').then(l => setC((Array.isArray(l) ? l : []).find(x => x.featured) || l?.[0])).catch(() => {}); }, []);
   return (<>
     <section className="hero">
       <h1>Your good rounds pay for someone else's better days.</h1>

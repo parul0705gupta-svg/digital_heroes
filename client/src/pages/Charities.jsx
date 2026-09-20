@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 export default function Charities() {
   const [q, setQ] = useState(''), [list, setList] = useState([]);
-  useEffect(() => { const t = setTimeout(() => api(`/charities?q=${encodeURIComponent(q)}`).then(setList).catch(() => setList([])), 250); return () => clearTimeout(t); }, [q]);
+  useEffect(() => { const t = setTimeout(() => api(`/charities?q=${encodeURIComponent(q)}`).then(l => setList(Array.isArray(l) ? l : [])).catch(() => setList([])), 250); return () => clearTimeout(t); }, [q]);
   return (<section className="page"><h1>Charities you can support</h1>
     <input placeholder="Search charities" value={q} onChange={e => setQ(e.target.value)} aria-label="Search charities" />
     <div className="grid">{list.map(c => <article key={c.id} className="card">

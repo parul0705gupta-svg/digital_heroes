@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { sb, api } from '../api';
 export default function Auth({ mode }) {
   const [f, setF] = useState({ email: '', password: '', full_name: '', charity_id: '' }), [err, setErr] = useState(''), [ch, setCh] = useState([]), nav = useNavigate();
-  useEffect(() => { if (mode === 'signup') api('/charities').then(setCh).catch(() => {}); }, [mode]);
+  useEffect(() => { if (mode === 'signup') api('/charities').then(l => setCh(Array.isArray(l) ? l : [])).catch(() => {}); }, [mode]);
   const set = k => e => setF({ ...f, [k]: e.target.value });
   const submit = async e => {
     e.preventDefault(); setErr('');
