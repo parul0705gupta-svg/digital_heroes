@@ -7,7 +7,17 @@ const { drawNumbers, runDraw } = require('../lib/draw');
 const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_x');
 const app = express();
-app.use(cors({ origin: process.env.CLIENT_URL || true }));
+const allowedOrigins = [process.env.CLIENT_URL, 'http://localhost:5173', 'http://localhost:3000'].filter(Boolean);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 
 // Stripe webhook (raw body): keeps subscription state in sync (renew / cancel / lapse)
 app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
@@ -149,5 +159,12 @@ admin.get('/reports', wrap(async (req, res) => {
   res.json({ totalUsers: u.count, monthlyPrizePool: pool, donations: d.data.reduce((a, x) => a + Number(x.amount), 0), draws: w.data });
 }));
 app.use('/api/admin', admin);
+
+const PORT = process.env.PORT || 3001;
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Digital Heroes API server running on http://localhost:${PORT}`);
+  });
+}
 
 module.exports = app;
