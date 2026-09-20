@@ -51,7 +51,7 @@ async function auth(req, res, next) {
 }
 const needActive = (req, res, next) => req.user.active ? next() : res.status(402).json({ error: 'Active subscription required' });
 const needAdmin = (req, res, next) => req.user.role === 'admin' ? next() : res.status(403).json({ error: 'Admin only' });
-const validScore = s => { if (!Number.isInteger(s) || s < 1 || s > 45) throw new Error('Score must be a whole number from 1 to 45'); };
+const { validScore, charityFields } = require('../lib/validate');
 
 // Public
 app.post('/api/signup', wrap(async (req, res) => {
@@ -162,9 +162,18 @@ admin.get('/users/:id', wrap(async (req, res) => {
 admin.patch('/users/:id', wrap(async (req, res) => {
   const { full_name, role, charity_pct } = req.body, patch = {};
   if (full_name !== undefined) patch.full_name = String(full_name).slice(0, 100);
-  if (['subscriber', 'admin'].includes(role)) patch.role = role;
+  if (['subscriber', 'admin'].includes(role)) {
+    if (req.params.id === req.user.id && role !== 'admin') throw new Error('You cannot remove your own admin role');
+    patch.role = role;
+  }
   if (charity_pct !== undefined) { if (!(charity_pct >= 10 && charity_pct <= 100)) throw new Error('Contribution must be 10-100%'); patch.charity_pct = charity_pct; }
   res.json((await db.from('profiles').update(patch).eq('id', req.params.id).select().single()).data);
+}));
+admin.patch('/users/:id/subscription', wrap(async (req, res) => {   // manual override; Stripe webhooks overwrite it on the next event
+  if (!['active', 'inactive', 'cancelled', 'lapsed'].includes(req.body.status)) throw new Error('Invalid status');
+  const { data } = await db.from('subscriptions').update({ status: req.body.status }).eq('user_id', req.params.id).select().maybeSingle();
+  if (!data) throw new Error('This user has no subscription record');
+  res.json(data);
 }));
 admin.delete('/users/:id/scores/:sid', wrap(async (req, res) => { await db.from('scores').delete().eq('id', req.params.sid).eq('user_id', req.params.id); res.json({ ok: true }); }));
 async function loadUsers() {   // active subscribers with their latest scores
@@ -187,11 +196,11 @@ admin.post('/draws/:id/publish', wrap(async (req, res) => {
   if (d.pool.preview.length) await db.from('winners').insert(d.pool.preview.map(w => ({ ...w, draw_id: d.id })));
   await db.from('draws').update({ status: 'published' }).eq('id', d.id); res.json({ ok: true });
 }));
-admin.get('/users', wrap(async (req, res) => res.json((await db.from('profiles').select('*, subscriptions(*)')).data)));
+admin.get('/users', wrap(async (req, res) => res.json((await db.from('profiles').select('*, subscriptions(*), charities(name)')).data)));
 admin.put('/users/:id/scores/:sid', wrap(async (req, res) => { validScore(req.body.score);
-  res.json((await db.from('scores').update({ score: req.body.score }).eq('id', req.params.sid).select().single()).data); }));
-admin.post('/charities', wrap(async (req, res) => res.json((await db.from('charities').insert(req.body).select().single()).data)));
-admin.put('/charities/:id', wrap(async (req, res) => res.json((await db.from('charities').update(req.body).eq('id', req.params.id).select().single()).data)));
+  res.json((await db.from('scores').update({ score: req.body.score }).eq('id', req.params.sid).eq('user_id', req.params.id).select().single()).data); }));
+admin.post('/charities', wrap(async (req, res) => res.json((await db.from('charities').insert(charityFields(req.body)).select().single()).data)));
+admin.put('/charities/:id', wrap(async (req, res) => res.json((await db.from('charities').update(charityFields(req.body)).eq('id', req.params.id).select().single()).data)));
 admin.delete('/charities/:id', wrap(async (req, res) => { await db.from('charities').delete().eq('id', req.params.id); res.json({ ok: true }); }));
 admin.get('/winners', wrap(async (req, res) => {
   const { data } = await db.from('winners').select('*, profiles(full_name,email), draws(month)');
