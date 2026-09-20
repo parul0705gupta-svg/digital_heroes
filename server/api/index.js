@@ -230,4 +230,9 @@ admin.get('/reports', wrap(async (req, res) => {   // all values computed from r
 }));
 app.use('/api/admin', admin);
 
+const PORT = process.env.PORT || 3001;
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`Digital Heroes API server running on http://localhost:${PORT}`));
+}
+
 module.exports = app;
