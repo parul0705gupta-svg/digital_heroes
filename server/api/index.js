@@ -50,9 +50,10 @@ app.param('id', chkId); app.param('sid', chkId);
 
 // Auth: verify Supabase JWT, load role + live subscription status on every request (PRD section 04)
 async function auth(req, res, next) {
-  const token = (req.headers.authorization || '').replace('Bearer ', '');
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return res.status(401).json({ error: 'Unauthenticated' });
   const { data, error } = await db.auth.getUser(token);
-  if (error || !data.user) return res.status(401).json({ error: 'Unauthenticated' });
+  if (error || !data?.user) return res.status(401).json({ error: 'Unauthenticated' });
   const [{ data: profile }, { data: sub }] = await Promise.all([
     db.from('profiles').select('*').eq('id', data.user.id).single(),
     db.from('subscriptions').select('*').eq('user_id', data.user.id).maybeSingle()]);
@@ -65,11 +66,43 @@ const { validScore, charityFields, isUuid, validDate } = require('../lib/validat
 
 // Public
 app.post('/api/signup', wrap(async (req, res) => {
-  const { email, password, full_name, charity_id } = req.body;
-  const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true });
+  const { email, password, full_name, charity_id } = req.body || {};
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('A valid email address is required');
+  if (!password || password.length < 6) throw new Error('Password must be at least 6 characters');
+  if (!full_name || !full_name.trim()) throw new Error('Full name is required');
+  if (!charity_id) throw new Error('Please choose a charity');
+  const { data, error } = await db.auth.admin.createUser({ email: email.trim(), password, email_confirm: true });
   if (error) throw new Error(/regist|exist/i.test(error.message) ? 'An account with this email already exists' : 'Could not create the account. Check the email and password.');
-  await db.from('profiles').insert({ id: data.user.id, email, full_name, charity_id });
-  res.json({ id: data.user.id });
+  await db.from('profiles').insert({ id: data.user.id, email: email.trim(), full_name: full_name.trim(), charity_id });
+  const { data: authData } = await db.auth.signInWithPassword({ email: email.trim(), password });
+  res.json({
+    ok: true,
+    id: data.user.id,
+    token: authData?.session?.access_token || null,
+    user: { id: data.user.id, email: email.trim(), full_name: full_name.trim(), charity_id, role: 'subscriber', active: false }
+  });
+}));
+
+app.post('/api/login', wrap(async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) throw new Error('Email and password are required');
+  const { data: authData, error: authError } = await db.auth.signInWithPassword({ email: email.trim(), password });
+  if (authError || !authData?.user) throw new Error('Invalid email or password');
+  const [{ data: profile }, { data: sub }] = await Promise.all([
+    db.from('profiles').select('*').eq('id', authData.user.id).maybeSingle(),
+    db.from('subscriptions').select('*').eq('user_id', authData.user.id).maybeSingle()
+  ]);
+  res.json({
+    ok: true,
+    token: authData.session?.access_token || '',
+    user: {
+      id: authData.user.id,
+      email: authData.user.email,
+      full_name: profile?.full_name || '',
+      role: profile?.role || 'subscriber',
+      active: sub?.status === 'active'
+    }
+  });
 }));
 app.get('/api/charities', wrap(async (req, res) => {
   let q = db.from('charities').select('*').order('featured', { ascending: false });
@@ -252,9 +285,10 @@ app.use('/api/admin', admin);
 // Last-resort handler: never send stack traces (malformed JSON, oversized bodies)
 app.use((err, req, res, next) => res.status(err.status === 413 ? 413 : 400).json({ error: err.status === 413 ? 'File is too large' : 'Invalid request' }));
 
-const PORT = process.env.PORT || 3001;
+module.exports = app;
+
 if (require.main === module) {
-  app.listen(PORT, () => console.log(`Digital Heroes API server running on http://localhost:${PORT}`));
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, () => console.log(`Digital Heroes API server running on port ${PORT}`));
 }
 
-module.exports = app;
