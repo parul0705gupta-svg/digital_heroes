@@ -5,7 +5,7 @@ const subOf = u => (Array.isArray(u.subscriptions) ? u.subscriptions[0] : u.subs
 const arr = x => (Array.isArray(x) ? x : []);
 const tabs = ['Users', 'Draws', 'Charities', 'Winners', 'Reports'];
 export default function Admin() {
-  const [t, setT] = useState('Users'), [editId, setEditId] = useState(null), [cf, setCf] = useState(undefined), [del, setDel] = useState(null), [rows, setRows] = useState([]), [rep, setRep] = useState(null), [msg, setMsg] = useState('');
+  const [t, setT] = useState('Users'), [editId, setEditId] = useState(null), [cf, setCf] = useState(undefined), [del, setDel] = useState(null), [rs, setRs] = useState({}), [rows, setRows] = useState([]), [rep, setRep] = useState(null), [msg, setMsg] = useState('');
   const [draw, setDraw] = useState(null), [dr, setDr] = useState({ month: new Date().toISOString().slice(0, 7), mode: 'random' }), [nc, setNc] = useState({ name: '', description: '', image_url: '' });
   const run = async fn => { setMsg(''); try { await fn(); } catch (e) { setMsg(e.message); } };
   const setStatus = (w, body) => run(async () => { await api(`/admin/winners/${w.id}`, 'PATCH', body); load(); });
@@ -37,7 +37,7 @@ export default function Admin() {
     {t === 'Winners' && <ul className="list">{rows.map(w => <li key={w.id}><div><b>{w.profiles?.full_name || w.profiles?.email}</b> <span>{w.profiles?.email}</span><br />
       <span>{w.draws?.month}: {w.tier} numbers, ₹{w.amount}. Proof: {w.verification}. Payout: {w.payment}</span></div>
       {w.proof_signed && <a href={w.proof_signed} target="_blank" rel="noreferrer"><img src={w.proof_signed} alt="Proof screenshot" style={{ maxWidth: 140, borderRadius: 8 }} /></a>}
-      {w.verification === 'submitted' && <><button className="link" onClick={() => setStatus(w, { verification: 'approved' })}>Approve</button><button className="link" onClick={() => setStatus(w, { verification: 'rejected' })}>Reject</button></>}
+      {w.verification === 'submitted' && <><button className="link" onClick={() => setStatus(w, { verification: 'approved' })}>Approve</button><input placeholder="Rejection reason (optional)" aria-label="Rejection reason" style={{ width: 200 }} value={rs[w.id] || ''} onChange={e => setRs({ ...rs, [w.id]: e.target.value })} /><button className="link" onClick={() => setStatus(w, { verification: 'rejected', reason: rs[w.id] })}>Reject</button></>}
       {w.verification === 'rejected' && <button className="link" onClick={() => setStatus(w, { verification: 'awaiting' })}>Request resubmission</button>}
       {w.verification === 'approved' && w.payment === 'pending' && <button className="link" onClick={() => setStatus(w, { payment: 'paid' })}>Mark paid</button>}</li>)}
       {!rows.length && <li>No winners yet. Publish a draw first.</li>}</ul>}

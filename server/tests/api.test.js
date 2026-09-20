@@ -47,23 +47,23 @@ test('SCORES: duplicate date is rejected with a clear message', async () => {
 });
 test('CHARITY: contribution below 10% rejected, 10% accepted', async () => {
   reset(SUB);
-  assert.equal((await call('/api/me/charity', { method: 'PATCH', token: 'u1', body: { charity_id: 'c1', charity_pct: 5 } })).status, 400);
-  assert.equal((await call('/api/me/charity', { method: 'PATCH', token: 'u1', body: { charity_id: 'c1', charity_pct: 10 } })).status, 200);
+  assert.equal((await call('/api/me/charity', { method: 'PATCH', token: 'u1', body: { charity_id: '22222222-2222-4222-8222-222222222222', charity_pct: 5 } })).status, 400);
+  assert.equal((await call('/api/me/charity', { method: 'PATCH', token: 'u1', body: { charity_id: '22222222-2222-4222-8222-222222222222', charity_pct: 10 } })).status, 200);
 });
 test('WINNER: cannot upload proof for another user\'s win, or a non-image', async () => {
-  reset({ ...SUB, 'winners:select': { data: { id: 'w1', user_id: 'someone-else', verification: 'awaiting' } } });
-  const r = await call('/api/winners/w1/proof', { method: 'POST', token: 'u1', body: { type: 'image/png', data: 'aGk=' } });
+  reset({ ...SUB, 'winners:select': { data: { id: '11111111-1111-4111-8111-111111111111', user_id: 'someone-else', verification: 'awaiting' } } });
+  const r = await call('/api/winners/11111111-1111-4111-8111-111111111111/proof', { method: 'POST', token: 'u1', body: { type: 'image/png', data: 'aGk=' } });
   assert.equal(r.status, 400); assert.match((await r.json()).error, /not your winning entry/);
-  assert.equal((await call('/api/winners/w1/proof', { method: 'POST', token: 'u1', body: { type: 'image/gif', data: 'aGk=' } })).status, 400);
+  assert.equal((await call('/api/winners/11111111-1111-4111-8111-111111111111/proof', { method: 'POST', token: 'u1', body: { type: 'image/gif', data: 'aGk=' } })).status, 400);
 });
 test('WINNER: owner upload marks proof as submitted', async () => {
-  reset({ ...SUB, 'winners:select': { data: { id: 'w1', user_id: 'u1', verification: 'awaiting' } } });
-  assert.equal((await call('/api/winners/w1/proof', { method: 'POST', token: 'u1', body: { type: 'image/png', data: 'aGk=' } })).status, 200);
+  reset({ ...SUB, 'winners:select': { data: { id: '11111111-1111-4111-8111-111111111111', user_id: 'u1', verification: 'awaiting' } } });
+  assert.equal((await call('/api/winners/11111111-1111-4111-8111-111111111111/proof', { method: 'POST', token: 'u1', body: { type: 'image/png', data: 'aGk=' } })).status, 200);
   assert.equal(find('winners', 'update').args[0].verification, 'submitted');
 });
 test('WINNER: admin cannot mark paid before approval', async () => {
-  reset({ 'profiles:select': { data: { id: 'a', role: 'admin' } }, 'winners:select': { data: { id: 'w1', verification: 'submitted' } } });
-  assert.equal((await call('/api/admin/winners/w1', { method: 'PATCH', token: 'a', body: { payment: 'paid' } })).status, 400);
+  reset({ 'profiles:select': { data: { id: 'a', role: 'admin' } }, 'winners:select': { data: { id: '11111111-1111-4111-8111-111111111111', verification: 'submitted' } } });
+  assert.equal((await call('/api/admin/winners/11111111-1111-4111-8111-111111111111', { method: 'PATCH', token: 'a', body: { payment: 'paid' } })).status, 400);
 });
 test('STRIPE: bad webhook signature is rejected', async () => {
   reset(); assert.equal((await call('/api/webhook', { method: 'POST', headers: { 'stripe-signature': 'bad' }, body: { type: 'x' } })).status, 400);
@@ -83,6 +83,49 @@ test('STRIPE: deleted subscription becomes cancelled', async () => {
   assert.equal(find('subscriptions', 'update').args[0].status, 'cancelled');
 });
 test('STRIPE: donation is recorded and never touches subscriptions', async () => {
-  reset(); await hook('checkout.session.completed', { id: 'cs_1', payment_status: 'paid', amount_total: 50000, metadata: { kind: 'donation', user_id: 'u1', charity_id: 'c1' } });
+  reset(); await hook('checkout.session.completed', { id: 'cs_1', payment_status: 'paid', amount_total: 50000, metadata: { kind: 'donation', user_id: 'u1', charity_id: '22222222-2222-4222-8222-222222222222' } });
   assert.equal(find('donations', 'upsert').args[0].amount, 500); assert.equal(find('subscriptions', 'upsert'), undefined);
+});
+
+const W = '11111111-1111-4111-8111-111111111111', ADMIN = { 'profiles:select': { data: { id: 'a', role: 'admin' } } };
+test('VALIDATION: malformed id is rejected before touching the database', async () => {
+  reset(ADMIN); assert.equal((await call('/api/admin/winners/not-a-uuid', { method: 'PATCH', token: 'a', body: { payment: 'paid' } })).status, 400);
+});
+test('SCORES: editing the date to an existing date is rejected gracefully', async () => {
+  reset({ ...SUB, 'scores:update': { data: null, error: { code: '23505' } } });
+  const r = await call(`/api/scores/${W}`, { method: 'PUT', token: 'u1', body: { played_on: '2026-09-01' } });
+  assert.equal(r.status, 400); assert.match((await r.json()).error, /already exists/);
+});
+test('SCORES: date edit is saved; invalid and future dates are refused', async () => {
+  reset({ ...SUB, 'scores:update': { data: { id: W }, error: null } });
+  assert.equal((await call(`/api/scores/${W}`, { method: 'PUT', token: 'u1', body: { score: 30, played_on: '2026-09-01' } })).status, 200);
+  assert.equal(find('scores', 'update').args[0].played_on, '2026-09-01');
+  for (const bad of ['2999-01-01', 'abc', '2026-02-31']) assert.equal((await call('/api/scores', { method: 'POST', token: 'u1', body: { score: 20, played_on: bad } })).status, 400, bad);
+});
+test('DRAW: a draw can be published once, a second publish is refused', async () => {
+  reset({ ...ADMIN, 'draws:update': { data: { id: W, pool: { preview: [] } }, error: null } });
+  assert.equal((await call(`/api/admin/draws/${W}/publish`, { method: 'POST', token: 'a' })).status, 200);
+  reset({ ...ADMIN, 'draws:update': { data: null, error: null } });
+  assert.equal((await call(`/api/admin/draws/${W}/publish`, { method: 'POST', token: 'a' })).status, 400);
+});
+test('WINNER: rejection reason is stored and approved -> paid is allowed', async () => {
+  reset({ ...ADMIN, 'winners:select': { data: { id: W, verification: 'submitted' } } });
+  await call(`/api/admin/winners/${W}`, { method: 'PATCH', token: 'a', body: { verification: 'rejected', reason: 'Screenshot is blurry' } });
+  assert.equal(find('winners', 'update').args[0].rejection_reason, 'Screenshot is blurry');
+  reset({ ...ADMIN, 'winners:select': { data: { id: W, verification: 'approved' } } });
+  assert.equal((await call(`/api/admin/winners/${W}`, { method: 'PATCH', token: 'a', body: { payment: 'paid' } })).status, 200);
+});
+test('ERRORS: database internals are never leaked to users', async () => {
+  reset({ ...SUB, 'scores:insert': { data: null, error: { code: 'XX000', message: 'relation secret_table violates constraint' } } });
+  const r = await call('/api/scores', { method: 'POST', token: 'u1', body: { score: 20, played_on: '2026-09-01' } });
+  assert.equal(r.status, 400); assert.doesNotMatch(JSON.stringify(await r.json()), /secret_table/);
+});
+test('DONATION: invalid charity id or amount is refused before Stripe is called', async () => {
+  reset(SUB);
+  assert.equal((await call('/api/donate', { method: 'POST', token: 'u1', body: { charity_id: 'x', amount: 500 } })).status, 400);
+  assert.equal((await call('/api/donate', { method: 'POST', token: 'u1', body: { charity_id: W, amount: 10 } })).status, 400);
+});
+test('ERRORS: malformed JSON returns a safe message, not a stack trace', async () => {
+  const r = await fetch(`${base}/api/scores`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{bad' });
+  assert.equal(r.status, 400); assert.doesNotMatch(await r.text(), /at .*\.js/);
 });

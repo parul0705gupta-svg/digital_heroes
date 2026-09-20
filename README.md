@@ -24,3 +24,10 @@ Golf performance + monthly charity prize draw platform. `client/` (React + Vite)
 
 ## Testing
 `cd server && npm install && npm test` runs 30+ tests: draw engine, validation, and API tests against a fake Supabase and Stripe (auth, admin access, score rules, charity %, proof ownership, webhook signature and subscription/donation events). The UI is not covered by automated tests.
+
+## Security and database notes
+- Run `schema.sql`, then `migration_2.sql`, then `migration_3.sql` (RLS on every table, rejection reason column).
+- The Supabase anon key is public by design; RLS blocks direct access. Charities are publicly readable, donations are readable by their owner only, everything else is server-only (service role).
+- Secrets live only in the server project. The client uses only VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_URL. The server refuses to start in production if CLIENT_URL, STRIPE_WEBHOOK_SECRET, MONTHLY_PRICE or YEARLY_PRICE is missing.
+- Draw eligibility: every active subscriber is entered automatically and matches using the scores they hold when the draw is simulated. A subscriber with no scores cannot match. Non-active subscribers are excluded.
+- Publishing is atomic (a draw cannot be published twice). Simulating creates a draft only; winners exist only after publish. If several drafts are simulated, publish them in order, because each draft takes its jackpot carry from the last published draw.

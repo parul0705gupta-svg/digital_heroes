@@ -16,9 +16,9 @@ export default function Auth({ mode }) {
   };
   return (<section className="page narrow"><h1>{mode === 'signup' ? 'Create your account' : 'Log in'}</h1>
     <form onSubmit={submit}>
-      {mode === 'signup' && <input required placeholder="Full name" value={f.full_name} onChange={set('full_name')} />}
-      <input required type="email" placeholder="Email" value={f.email} onChange={set('email')} />
-      <input required type="password" minLength={6} placeholder="Password (6+ characters)" value={f.password} onChange={set('password')} />
+      {mode === 'signup' && <input required placeholder="Full name" aria-label="Full name" value={f.full_name} onChange={set('full_name')} />}
+      <input required type="email" placeholder="Email" aria-label="Email" value={f.email} onChange={set('email')} />
+      <input required type="password" minLength={6} placeholder="Password (6+ characters)" aria-label="Password (6+ characters)" value={f.password} onChange={set('password')} />
       {mode === 'signup' && <select value={f.charity_id} onChange={set('charity_id')}><option value="">Choose your charity</option>{ch.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>}
       {err && <p className="err" role="alert">{err}</p>}
       <button className="btn">{mode === 'signup' ? 'Create account' : 'Log in'}</button></form></section>);

@@ -15,7 +15,7 @@ export default function Dashboard() {
         {sub?.current_period_end && <small>Renews {new Date(sub.current_period_end).toLocaleDateString()}</small>}
         {sub?.cancel_at_period_end && active && <small>Cancels at the end of this period</small>}
         {!active && <Link to="/pricing" className="btn sm">Subscribe to enter draws</Link>}
-        {sub?.stripe_sub_id && <div className="row"><button className="btn sm ghost" onClick={portal}>Manage subscription</button><button className="btn sm ghost" onClick={portal}>Cancel subscription</button></div>}</div>
+        {sub?.stripe_sub_id && <><button className="btn sm ghost" onClick={portal}>Manage / cancel subscription</button><small>You will be redirected to Stripe to manage or cancel your plan.</small></>}</div>
       <div className="card"><h3>Your charity</h3>
         <select value={d.charity?.id || ''} onChange={e => act(() => api('/me/charity', 'PATCH', { charity_id: e.target.value, charity_pct: d.charity_pct }))}>
           <option value="">Choose a charity</option>{ch.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
@@ -23,16 +23,17 @@ export default function Dashboard() {
           onMouseUp={() => act(() => api('/me/charity', 'PATCH', { charity_id: d.charity?.id, charity_pct: d.charity_pct }))} onTouchEnd={() => act(() => api('/me/charity', 'PATCH', { charity_id: d.charity?.id, charity_pct: d.charity_pct }))} /></label></div>
       <div className="card"><h3>Your last 5 scores</h3>
         <form className="row" onSubmit={e => { e.preventDefault(); act(async () => { await api('/scores', 'POST', { score: +f.score, played_on: f.played_on }); setF({ score: '', played_on: '' }); }); }}>
-          <input required type="number" min="1" max="45" placeholder="Score (1-45)" value={f.score} onChange={e => setF({ ...f, score: e.target.value })} />
+          <input required type="number" min="1" max="45" placeholder="Score (1-45)" aria-label="Score (1-45)" value={f.score} onChange={e => setF({ ...f, score: e.target.value })} />
           <input required type="date" value={f.played_on} onChange={e => setF({ ...f, played_on: e.target.value })} /><button className="btn sm">Add score</button></form>
-        <ul className="list">{d.scores.map(s => <li key={s.id}>{ed?.id === s.id ? <><input type="number" min="1" max="45" style={{ width: 90 }} value={ed.v} aria-label="New score" onChange={e => setEd({ id: s.id, v: e.target.value })} />
-          <button className="link" onClick={() => act(async () => { await api(`/scores/${s.id}`, 'PUT', { score: +ed.v }); setEd(null); })}>Save</button><button className="link" onClick={() => setEd(null)}>Cancel</button></>
-          : <><b>{s.score}</b> <span>{s.played_on}</span><button className="link" onClick={() => setEd({ id: s.id, v: s.score })}>Edit</button><button className="link" onClick={() => act(() => api(`/scores/${s.id}`, 'DELETE'))}>Delete</button></>}</li>)}
+        <ul className="list">{d.scores.map(s => <li key={s.id}>{ed?.id === s.id ? <><input type="number" min="1" max="45" style={{ width: 90 }} value={ed.v} aria-label="New score" onChange={e => setEd({ ...ed, v: e.target.value })} />
+          <input type="date" value={ed.d} aria-label="Played date" onChange={e => setEd({ ...ed, d: e.target.value })} />
+          <button className="link" onClick={() => act(async () => { await api(`/scores/${s.id}`, 'PUT', { score: +ed.v, played_on: ed.d }); setEd(null); })}>Save</button><button className="link" onClick={() => setEd(null)}>Cancel</button></>
+          : <><b>{s.score}</b> <span>{s.played_on}</span><button className="link" onClick={() => setEd({ id: s.id, v: s.score, d: s.played_on })}>Edit</button><button className="link" onClick={() => act(() => api(`/scores/${s.id}`, 'DELETE'))}>Delete</button></>}</li>)}
           {!d.scores.length && <li>No scores yet. Add your first round above.</li>}</ul></div>
-      <div className="card"><h3>Draws</h3><p>Next draw: {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString()} (end of this month). {d.drawsEntered} published so far.</p>
+      <div className="card"><h3>Draws</h3><p>Every active subscriber is entered automatically, using the scores they hold on draw day. Next draw: {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString()} (end of this month). {d.drawsEntered} published so far.</p>
         <ul className="list">{(d.pastDraws || []).map(x => { const w = d.winnings.find(v => v.draw_id === x.id); return <li key={x.id}><b>{x.month}</b> <span>{x.numbers.join(', ')}</span> <span>{w ? `You won (${w.tier} numbers)` : 'No win'}</span></li>; })}</ul>
         <h3>Winnings</h3><p className="price">₹{d.totalWon}<small> approved</small></p>
-        <ul className="list">{d.winnings.map(w => <li key={w.id}>{w.draws?.month}: {w.tier} numbers, ₹{w.amount} ({w.verification}, {w.payment})
+        <ul className="list">{d.winnings.map(w => <li key={w.id}>{w.draws?.month}: {w.tier} numbers, ₹{w.amount} ({w.verification}, {w.payment}){w.verification === 'rejected' && w.rejection_reason && <em> Reason: {w.rejection_reason}.</em>}
           {['awaiting', 'rejected'].includes(w.verification) && <ProofUpload id={w.id} onDone={load} />}</li>)}
           {!d.winnings.length && <li>No wins yet.</li>}</ul></div>
     </div></section>);

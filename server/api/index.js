@@ -4,8 +4,11 @@ const { createClient } = require('@supabase/supabase-js');
 const Stripe = require('stripe');
 const { drawNumbers, runDraw } = require('../lib/draw');
 
-const db = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_x');
+// Fail clearly when configuration is missing instead of running with fake defaults
+const need = k => { if (!process.env[k]) throw new Error(`Missing required environment variable ${k}`); return process.env[k]; };
+if (process.env.NODE_ENV === 'production') ['CLIENT_URL', 'STRIPE_WEBHOOK_SECRET', 'MONTHLY_PRICE', 'YEARLY_PRICE'].forEach(need);
+const db = createClient(need('SUPABASE_URL'), need('SUPABASE_SERVICE_ROLE_KEY'));
+const stripe = new Stripe(need('STRIPE_SECRET_KEY'));
 const app = express();
 // Allow the deployed client and local development
 const allowed = [process.env.CLIENT_URL, 'http://localhost:5173'].filter(Boolean);
@@ -36,7 +39,14 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
 });
 
 app.use(express.json({ limit: '5mb' }));   // proof images arrive as base64 (max 3 MB file)
-const wrap = fn => (req, res) => fn(req, res).catch(e => res.status(400).json({ error: e.message }));
+// Our own validation errors are shown to users; database/Stripe/storage errors are logged and replaced by a safe message
+const wrap = fn => (req, res) => fn(req, res).catch(e => {
+  const internal = !(e instanceof Error) || e.code || e.details || e.hint || e.type || e.status;
+  if (internal) console.error(e);
+  res.status(400).json({ error: internal ? 'The request could not be completed. Please check your input and try again.' : e.message });
+});
+const chkId = (req, res, next, v) => (isUuid(v) ? next() : res.status(400).json({ error: 'Invalid id' }));
+app.param('id', chkId); app.param('sid', chkId);
 
 // Auth: verify Supabase JWT, load role + live subscription status on every request (PRD section 04)
 async function auth(req, res, next) {
@@ -51,13 +61,13 @@ async function auth(req, res, next) {
 }
 const needActive = (req, res, next) => req.user.active ? next() : res.status(402).json({ error: 'Active subscription required' });
 const needAdmin = (req, res, next) => req.user.role === 'admin' ? next() : res.status(403).json({ error: 'Admin only' });
-const { validScore, charityFields } = require('../lib/validate');
+const { validScore, charityFields, isUuid, validDate } = require('../lib/validate');
 
 // Public
 app.post('/api/signup', wrap(async (req, res) => {
   const { email, password, full_name, charity_id } = req.body;
   const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true });
-  if (error) throw error;
+  if (error) throw new Error(/regist|exist/i.test(error.message) ? 'An account with this email already exists' : 'Could not create the account. Check the email and password.');
   await db.from('profiles').insert({ id: data.user.id, email, full_name, charity_id });
   res.json({ id: data.user.id });
 }));
@@ -85,14 +95,19 @@ app.post('/api/checkout', auth, wrap(async (req, res) => {
 app.get('/api/scores', auth, wrap(async (req, res) =>
   res.json((await db.from('scores').select('*').eq('user_id', req.user.id).order('played_on', { ascending: false })).data)));
 app.post('/api/scores', auth, needActive, wrap(async (req, res) => {
-  validScore(req.body.score);
+  validScore(req.body.score); validDate(req.body.played_on);
   const { data, error } = await db.from('scores').insert({ user_id: req.user.id, score: req.body.score, played_on: req.body.played_on }).select().single();
-  if (error) throw new Error(error.code === '23505' ? 'A score already exists for that date. Edit it instead.' : error.message);
+  if (error) { if (error.code !== '23505') throw error; throw new Error('A score already exists for that date. Edit it instead.'); }
   res.json(data);   // DB trigger drops the oldest beyond 5
 }));
-app.put('/api/scores/:id', auth, needActive, wrap(async (req, res) => {
-  validScore(req.body.score);
-  res.json((await db.from('scores').update({ score: req.body.score }).eq('id', req.params.id).eq('user_id', req.user.id).select().single()).data);
+app.put('/api/scores/:id', auth, needActive, wrap(async (req, res) => {   // score and/or played date can be edited
+  const patch = {};
+  if (req.body.score !== undefined) { validScore(req.body.score); patch.score = req.body.score; }
+  if (req.body.played_on !== undefined) { validDate(req.body.played_on); patch.played_on = req.body.played_on; }
+  if (!Object.keys(patch).length) throw new Error('Nothing to update');
+  const { data, error } = await db.from('scores').update(patch).eq('id', req.params.id).eq('user_id', req.user.id).select().single();
+  if (error) { if (error.code === '23505') throw new Error('A score already exists for that date.'); if (error.code === 'PGRST116') throw new Error('Score not found'); throw error; }
+  res.json(data);
 }));
 app.delete('/api/scores/:id', auth, needActive, wrap(async (req, res) => {
   await db.from('scores').delete().eq('id', req.params.id).eq('user_id', req.user.id); res.json({ ok: true });
@@ -100,7 +115,8 @@ app.delete('/api/scores/:id', auth, needActive, wrap(async (req, res) => {
 app.patch('/api/me/charity', auth, wrap(async (req, res) => {
   const { charity_id, charity_pct } = req.body;
   if (!(charity_pct >= 10 && charity_pct <= 100)) throw new Error('Contribution must be between 10% and 100%');
-  await db.from('profiles').update({ charity_id, charity_pct }).eq('id', req.user.id); res.json({ ok: true });
+  if (charity_id && !isUuid(charity_id)) throw new Error('Invalid charity');
+  await db.from('profiles').update({ charity_id: charity_id || null, charity_pct }).eq('id', req.user.id); res.json({ ok: true });
 }));
 const PROOF_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
 app.post('/api/winners/:id/proof', auth, wrap(async (req, res) => {   // real upload to private Supabase Storage bucket 'proofs'
@@ -137,6 +153,7 @@ app.get('/api/charities/:id', wrap(async (req, res) => {
 app.post('/api/donate', auth, wrap(async (req, res) => {   // independent donation via Checkout; recorded only by the verified webhook
   const amt = Math.round(+req.body.amount);
   if (!(amt >= 50 && amt <= 100000)) throw new Error('Enter an amount between 50 and 100000');
+  if (!isUuid(req.body.charity_id)) throw new Error('Invalid charity');
   const { data: c } = await db.from('charities').select('id, name').eq('id', req.body.charity_id).maybeSingle();
   if (!c) throw new Error('Charity not found');
   const s = await stripe.checkout.sessions.create({ mode: 'payment', customer_email: req.user.email,
@@ -154,6 +171,7 @@ app.post('/api/billing-portal', auth, wrap(async (req, res) => {   // Stripe Cus
 
 // Admin
 const admin = express.Router(); admin.use(auth, needAdmin);
+admin.param('id', chkId); admin.param('sid', chkId);
 admin.get('/users/:id', wrap(async (req, res) => {
   const [p, sc] = await Promise.all([db.from('profiles').select('*, subscriptions(*), charities(name)').eq('id', req.params.id).single(),
     db.from('scores').select('*').eq('user_id', req.params.id).order('played_on', { ascending: false })]);
@@ -190,11 +208,11 @@ admin.post('/draws/simulate', wrap(async (req, res) => {   // simulation before 
     pool: { ...r.pool, participants: users.length, preview: r.winners }, jackpot_carry: r.jackpotCarry }).select().single();
   res.json(data);
 }));
-admin.post('/draws/:id/publish', wrap(async (req, res) => {
-  const { data: d } = await db.from('draws').select('*').eq('id', req.params.id).single();
-  if (d.status === 'published') throw new Error('Already published');
+admin.post('/draws/:id/publish', wrap(async (req, res) => {   // atomic claim: a draw can only ever be published once
+  const { data: d } = await db.from('draws').update({ status: 'published' }).eq('id', req.params.id).eq('status', 'simulated').select().maybeSingle();
+  if (!d) throw new Error('Draw not found or already published');
   if (d.pool.preview.length) await db.from('winners').insert(d.pool.preview.map(w => ({ ...w, draw_id: d.id })));
-  await db.from('draws').update({ status: 'published' }).eq('id', d.id); res.json({ ok: true });
+  res.json({ ok: true });
 }));
 admin.get('/users', wrap(async (req, res) => res.json((await db.from('profiles').select('*, subscriptions(*), charities(name)')).data)));
 admin.put('/users/:id/scores/:sid', wrap(async (req, res) => { validScore(req.body.score);
@@ -213,6 +231,7 @@ admin.patch('/winners/:id', wrap(async (req, res) => {   // enforced state machi
   if (verification) {
     if (w.verification !== { approved: 'submitted', rejected: 'submitted', awaiting: 'rejected' }[verification]) throw new Error(`Cannot move from ${w.verification} to ${verification}`);
     patch.verification = verification;
+    patch.rejection_reason = verification === 'rejected' ? String(req.body.reason || '').slice(0, 300) || null : null;
   }
   if (payment === 'paid') { if (w.verification !== 'approved') throw new Error('Approve the proof before marking paid'); patch.payment = 'paid'; }
   res.json((await db.from('winners').update(patch).eq('id', w.id).select().single()).data);
@@ -230,9 +249,7 @@ admin.get('/reports', wrap(async (req, res) => {   // all values computed from r
 }));
 app.use('/api/admin', admin);
 
-const PORT = process.env.PORT || 3001;
-if (require.main === module) {
-  app.listen(PORT, () => console.log(`Digital Heroes API server running on http://localhost:${PORT}`));
-}
+// Last-resort handler: never send stack traces (malformed JSON, oversized bodies)
+app.use((err, req, res, next) => res.status(err.status === 413 ? 413 : 400).json({ error: err.status === 413 ? 'File is too large' : 'Invalid request' }));
 
 module.exports = app;
