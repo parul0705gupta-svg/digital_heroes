@@ -22,14 +22,14 @@ export default function Dashboard() {
         <form className="row" onSubmit={e => { e.preventDefault(); act(async () => { await api('/scores', 'POST', { score: +f.score, played_on: f.played_on }); setF({ score: '', played_on: '' }); }); }}>
           <input required type="number" min="1" max="45" placeholder="Score (1-45)" value={f.score} onChange={e => setF({ ...f, score: e.target.value })} />
           <input required type="date" value={f.played_on} onChange={e => setF({ ...f, played_on: e.target.value })} /><button className="btn sm">Add score</button></form>
-        <ul className="list">{d.scores.map(s => <li key={s.id}><b>{s.score}</b> <span>{s.played_on}</span>
+        <ul className="list">{(d.scores || []).map(s => <li key={s.id}><b>{s.score}</b> <span>{s.played_on}</span>
           <button className="link" onClick={() => { const v = +prompt('New score (1-45)', s.score); if (v) act(() => api(`/scores/${s.id}`, 'PUT', { score: v })); }}>Edit</button>
           <button className="link" onClick={() => act(() => api(`/scores/${s.id}`, 'DELETE'))}>Delete</button></li>)}
-          {!d.scores.length && <li>No scores yet. Add your first round above.</li>}</ul></div>
-      <div className="card"><h3>Draws</h3><p>{d.drawsEntered} published so far. The next draw runs at the end of the month.</p>
-        <h3>Winnings</h3><p className="price">₹{d.totalWon}<small> approved</small></p>
-        <ul className="list">{d.winnings.map(w => <li key={w.id}>{w.draws?.month}: {w.tier} numbers, ₹{w.amount} ({w.verification}, {w.payment})
+          {!(d.scores || []).length && <li>No scores yet. Add your first round above.</li>}</ul></div>
+      <div className="card"><h3>Draws</h3><p>{d.drawsEntered ?? 0} published so far. The next draw runs at the end of the month.</p>
+        <h3>Winnings</h3><p className="price">₹{d.totalWon ?? 0}<small> approved</small></p>
+        <ul className="list">{(d.winnings || []).map(w => <li key={w.id}>{w.draws?.month || 'Past draw'}: {w.tier} numbers, ₹{w.amount} ({w.verification}, {w.payment})
           {w.verification === 'awaiting' && <button className="link" onClick={() => { const u = prompt('Link to your score screenshot'); if (u) act(() => api(`/winners/${w.id}/proof`, 'POST', { proof_url: u })); }}>Upload proof</button>}</li>)}
-          {!d.winnings.length && <li>No wins yet.</li>}</ul></div>
+          {!(d.winnings || []).length && <li>No wins yet.</li>}</ul></div>
     </div></section>);
 }

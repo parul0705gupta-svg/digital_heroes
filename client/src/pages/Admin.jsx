@@ -17,8 +17,8 @@ export default function Admin() {
     {t === 'Draws' && <div className="card"><div className="row"><input type="month" value={dr.month} onChange={e => setDr({ ...dr, month: e.target.value })} />
       <select value={dr.mode} onChange={e => setDr({ ...dr, mode: e.target.value })}><option value="random">Random</option><option value="algorithmic">Algorithmic (score frequency)</option></select>
       <button className="btn sm" onClick={() => run(async () => setDraw(await api('/admin/draws/simulate', 'POST', dr)))}>Run simulation</button></div>
-      {draw && <div><div className="balls sm">{draw.numbers.map(n => <span key={n}>{n}</span>)}</div>
-        <p>Pool ₹{Math.round(draw.pool.total)}. Winners: 5 numbers {draw.pool.winnerCounts[5]}, 4 numbers {draw.pool.winnerCounts[4]}, 3 numbers {draw.pool.winnerCounts[3]}. Jackpot carry ₹{Math.round(draw.jackpot_carry)}.</p>
+      {draw && <div><div className="balls sm">{(draw.numbers || []).map(n => <span key={n}>{n}</span>)}</div>
+        <p>Pool ₹{Math.round(draw.pool?.total || 0)}. Winners: 5 numbers {draw.pool?.winnerCounts?.[5] ?? 0}, 4 numbers {draw.pool?.winnerCounts?.[4] ?? 0}, 3 numbers {draw.pool?.winnerCounts?.[3] ?? 0}. Jackpot carry ₹{Math.round(draw.jackpot_carry || 0)}.</p>
         <button className="btn" disabled={draw.status === 'published'} onClick={() => run(async () => { await api(`/admin/draws/${draw.id}/publish`, 'POST'); setDraw({ ...draw, status: 'published' }); })}>{draw.status === 'published' ? 'Published' : 'Publish results'}</button></div>}</div>}
     {t === 'Charities' && <><form className="row" onSubmit={e => { e.preventDefault(); run(async () => { await api('/admin/charities', 'POST', nc); setNc({ name: '', description: '', image_url: '' }); load(); }); }}>
       <input required placeholder="Name" value={nc.name} onChange={e => setNc({ ...nc, name: e.target.value })} /><input placeholder="Description" value={nc.description} onChange={e => setNc({ ...nc, description: e.target.value })} />
@@ -30,7 +30,7 @@ export default function Admin() {
       {w.proof_url && <a href={w.proof_url} target="_blank" rel="noreferrer">View proof</a>}
       {['approved', 'rejected'].map(v => <button key={v} className="link" onClick={() => run(async () => { await api(`/admin/winners/${w.id}`, 'PATCH', { verification: v }); load(); })}>{v === 'approved' ? 'Approve' : 'Reject'}</button>)}
       {w.verification === 'approved' && w.payment === 'pending' && <button className="link" onClick={() => run(async () => { await api(`/admin/winners/${w.id}`, 'PATCH', { payment: 'paid' }); load(); })}>Mark paid</button>}</li>)}</ul>}
-    {t === 'Reports' && rep && <div className="grid two"><div className="card"><h3>Total users</h3><p className="price">{rep.totalUsers}</p></div><div className="card"><h3>Monthly prize pool</h3><p className="price">₹{Math.round(rep.monthlyPrizePool)}</p></div>
-      <div className="card"><h3>Charity donations</h3><p className="price">₹{rep.donations}</p></div><div className="card"><h3>Draws run</h3><p className="price">{rep.draws.length}</p></div></div>}
+    {t === 'Reports' && rep && <div className="grid two"><div className="card"><h3>Total users</h3><p className="price">{rep.totalUsers ?? 0}</p></div><div className="card"><h3>Monthly prize pool</h3><p className="price">₹{Math.round(rep.monthlyPrizePool || 0)}</p></div>
+      <div className="card"><h3>Charity donations</h3><p className="price">₹{rep.donations ?? 0}</p></div><div className="card"><h3>Draws run</h3><p className="price">{rep.draws?.length ?? 0}</p></div></div>}
   </section>);
 }

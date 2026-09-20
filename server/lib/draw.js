@@ -5,7 +5,12 @@ const SHARE = { 5: 0.40, 4: 0.35, 3: 0.25 };   // PRD section 07
 // 'random' = uniform lottery; 'algorithmic' = weighted by score frequency
 function drawNumbers(mode, allScores = []) {
   const weight = Array(RANGE + 1).fill(1);
-  if (mode === 'algorithmic') allScores.forEach(s => { weight[s] += 1; });
+  if (mode === 'algorithmic' && Array.isArray(allScores)) {
+    allScores.forEach(s => {
+      const n = Number(s);
+      if (Number.isInteger(n) && n >= 1 && n <= RANGE) weight[n] += 1;
+    });
+  }
   const picked = new Set();
   while (picked.size < PICKS) {
     let total = 0;

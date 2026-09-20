@@ -1,3 +1,17 @@
-{ "name": "dh-server", "version": "1.0.0", "main": "api/index.js",
-  "scripts": { "build": "mkdir -p public && echo ok > public/index.html" },
-  "dependencies": { "express": "^4.19.2", "cors": "^2.8.5", "@supabase/supabase-js": "^2.45.0", "stripe": "^16.0.0" } }
+{
+  "name": "dh-server",
+  "version": "1.0.0",
+  "main": "api/index.js",
+  "scripts": {
+    "start": "node --env-file=.env api/index.js",
+    "dev": "node --watch --env-file=.env api/index.js",
+    "test": "node --env-file=.env test-suite.js",
+    "build": "mkdir -p public && echo ok > public/index.html"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "stripe": "^16.0.0"
+  }
+}
