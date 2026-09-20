@@ -21,3 +21,6 @@ Golf performance + monthly charity prize draw platform. `client/` (React + Vite)
 - Eligible for a draw: subscribers with status `active` at simulation time.
 - Unclaimed 4-match and 3-match pools are not redistributed or carried over; only the 5-match jackpot rolls over.
 - Charity contribution = charity_pct of the subscription fee (minimum 10%).
+
+## Testing
+`cd server && npm install && npm test` runs 30+ tests: draw engine, validation, and API tests against a fake Supabase and Stripe (auth, admin access, score rules, charity %, proof ownership, webhook signature and subscription/donation events). The UI is not covered by automated tests.

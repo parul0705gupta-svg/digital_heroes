@@ -41,10 +41,13 @@ export default function Admin() {
       {w.verification === 'rejected' && <button className="link" onClick={() => setStatus(w, { verification: 'awaiting' })}>Request resubmission</button>}
       {w.verification === 'approved' && w.payment === 'pending' && <button className="link" onClick={() => setStatus(w, { payment: 'paid' })}>Mark paid</button>}</li>)}
       {!rows.length && <li>No winners yet. Publish a draw first.</li>}</ul>}
-    {t === 'Reports' && rep && <div className="grid two"><div className="card"><h3>Total users</h3><p className="price">{rep.totalUsers}</p></div><div className="card"><h3>Monthly prize pool</h3><p className="price">₹{Math.round(rep.monthlyPrizePool)}</p></div>
+    {t === 'Reports' && rep && <><div className="grid two"><div className="card"><h3>Total users</h3><p className="price">{rep.totalUsers}</p></div><div className="card"><h3>Monthly prize pool</h3><p className="price">₹{Math.round(rep.monthlyPrizePool)}</p></div>
       <div className="card"><h3>Charity donations</h3><p className="price">₹{rep.donations}</p></div><div className="card"><h3>Draws run</h3><p className="price">{rep.draws.length}</p></div>
       <div className="card"><h3>Active subscribers</h3><p className="price">{rep.activeSubscribers}</p></div><div className="card"><h3>Charity contributions / month</h3><p className="price">₹{Math.round(rep.charityContributions)}</p></div>
       <div className="card"><h3>Winners</h3><p className="price">{rep.winnersCount}</p></div><div className="card"><h3>Total payouts</h3><p className="price">₹{rep.totalPayouts}</p></div>
-      <div className="card"><h3>Jackpot rollover</h3><p className="price">₹{Math.round(rep.jackpotRollover)}</p></div></div>}
+      <div className="card"><h3>Jackpot rollover</h3><p className="price">₹{Math.round(rep.jackpotRollover)}</p></div></div>
+      <h3>Draw statistics</h3><div className="scroll"><table className="tbl"><thead><tr><th>Month</th><th>Participants</th><th>Pool</th><th>5 match</th><th>4 match</th><th>3 match</th><th>Rollover</th></tr></thead>
+        <tbody>{rep.draws.map((x, i) => <tr key={i}><td>{x.month}</td><td>{x.pool?.participants ?? '-'}</td><td>₹{Math.round(x.pool?.total || 0)}</td><td>{x.pool?.winnerCounts?.[5]}</td><td>{x.pool?.winnerCounts?.[4]}</td><td>{x.pool?.winnerCounts?.[3]}</td><td>₹{Math.round(x.jackpot_carry)}</td></tr>)}</tbody></table>
+        {!rep.draws.length && <p>No published draws yet.</p>}</div></>}
   </section>);
 }

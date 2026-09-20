@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 export default function Dashboard() {
-  const [d, setD] = useState(null), [ch, setCh] = useState([]), [err, setErr] = useState(''), [f, setF] = useState({ score: '', played_on: '' });
+  const [ed, setEd] = useState(null), [d, setD] = useState(null), [ch, setCh] = useState([]), [err, setErr] = useState(''), [f, setF] = useState({ score: '', played_on: '' });
   const load = () => api('/dashboard').then(setD).catch(e => setErr(e.message));
   useEffect(() => { load(); api('/charities').then(l => setCh(Array.isArray(l) ? l : [])); }, []);
   const act = async fn => { setErr(''); try { await fn(); await load(); } catch (e) { setErr(e.message); } };
@@ -25,11 +25,12 @@ export default function Dashboard() {
         <form className="row" onSubmit={e => { e.preventDefault(); act(async () => { await api('/scores', 'POST', { score: +f.score, played_on: f.played_on }); setF({ score: '', played_on: '' }); }); }}>
           <input required type="number" min="1" max="45" placeholder="Score (1-45)" value={f.score} onChange={e => setF({ ...f, score: e.target.value })} />
           <input required type="date" value={f.played_on} onChange={e => setF({ ...f, played_on: e.target.value })} /><button className="btn sm">Add score</button></form>
-        <ul className="list">{d.scores.map(s => <li key={s.id}><b>{s.score}</b> <span>{s.played_on}</span>
-          <button className="link" onClick={() => { const v = +prompt('New score (1-45)', s.score); if (v) act(() => api(`/scores/${s.id}`, 'PUT', { score: v })); }}>Edit</button>
-          <button className="link" onClick={() => act(() => api(`/scores/${s.id}`, 'DELETE'))}>Delete</button></li>)}
+        <ul className="list">{d.scores.map(s => <li key={s.id}>{ed?.id === s.id ? <><input type="number" min="1" max="45" style={{ width: 90 }} value={ed.v} aria-label="New score" onChange={e => setEd({ id: s.id, v: e.target.value })} />
+          <button className="link" onClick={() => act(async () => { await api(`/scores/${s.id}`, 'PUT', { score: +ed.v }); setEd(null); })}>Save</button><button className="link" onClick={() => setEd(null)}>Cancel</button></>
+          : <><b>{s.score}</b> <span>{s.played_on}</span><button className="link" onClick={() => setEd({ id: s.id, v: s.score })}>Edit</button><button className="link" onClick={() => act(() => api(`/scores/${s.id}`, 'DELETE'))}>Delete</button></>}</li>)}
           {!d.scores.length && <li>No scores yet. Add your first round above.</li>}</ul></div>
-      <div className="card"><h3>Draws</h3><p>{d.drawsEntered} published so far. The next draw runs at the end of the month.</p>
+      <div className="card"><h3>Draws</h3><p>Next draw: {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toLocaleDateString()} (end of this month). {d.drawsEntered} published so far.</p>
+        <ul className="list">{(d.pastDraws || []).map(x => { const w = d.winnings.find(v => v.draw_id === x.id); return <li key={x.id}><b>{x.month}</b> <span>{x.numbers.join(', ')}</span> <span>{w ? `You won (${w.tier} numbers)` : 'No win'}</span></li>; })}</ul>
         <h3>Winnings</h3><p className="price">₹{d.totalWon}<small> approved</small></p>
         <ul className="list">{d.winnings.map(w => <li key={w.id}>{w.draws?.month}: {w.tier} numbers, ₹{w.amount} ({w.verification}, {w.payment})
           {['awaiting', 'rejected'].includes(w.verification) && <ProofUpload id={w.id} onDone={load} />}</li>)}

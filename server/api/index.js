@@ -122,10 +122,10 @@ app.get('/api/dashboard', auth, wrap(async (req, res) => {
   const [scores, wins, draws, charity] = await Promise.all([
     db.from('scores').select('*').eq('user_id', req.user.id).order('played_on', { ascending: false }),
     db.from('winners').select('*, draws(month)').eq('user_id', req.user.id),
-    db.from('draws').select('id, month').eq('status', 'published'),
+    db.from('draws').select('id, month, numbers').eq('status', 'published').order('created_at', { ascending: false }),
     db.from('charities').select('*').eq('id', req.user.charity_id).maybeSingle()]);
   res.json({ subscription: req.user.subscription, scores: scores.data, charity: charity.data, charity_pct: req.user.charity_pct,
-    drawsEntered: draws.data.length, winnings: wins.data,
+    drawsEntered: draws.data.length, pastDraws: draws.data, winnings: wins.data,
     totalWon: wins.data.filter(w => w.verification === 'approved').reduce((a, w) => a + Number(w.amount), 0) });
 }));
 
@@ -187,7 +187,7 @@ admin.post('/draws/simulate', wrap(async (req, res) => {   // simulation before 
   const numbers = drawNumbers(req.body.mode, users.flatMap(u => u.scores));
   const r = runDraw(numbers, users, +process.env.PRIZE_POOL_PCT || 0.5, last?.[0]?.jackpot_carry || 0);
   const { data } = await db.from('draws').insert({ month: req.body.month, mode: req.body.mode, numbers,
-    pool: { ...r.pool, preview: r.winners }, jackpot_carry: r.jackpotCarry }).select().single();
+    pool: { ...r.pool, participants: users.length, preview: r.winners }, jackpot_carry: r.jackpotCarry }).select().single();
   res.json(data);
 }));
 admin.post('/draws/:id/publish', wrap(async (req, res) => {
