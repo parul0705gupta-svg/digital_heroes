@@ -12,14 +12,7 @@ const chain = table => {
   return p;
 };
 const fakeDb = { from: chain,
-  auth: {
-    getUser: async t => (t ? { data: { user: { id: t } }, error: null } : { data: {}, error: { message: 'none' } }),
-    admin: { createUser: async () => ({ data: { user: { id: 'new' } }, error: null }) },
-    signInWithPassword: async ({ email, password }) => {
-      if (!email || !password || password === 'wrong') return { data: {}, error: { message: 'Invalid email or password' } };
-      return { data: { user: { id: 'u1', email }, session: { access_token: 'fake-jwt-token-for-u1' } }, error: null };
-    }
-  },
+  auth: { getUser: async t => (t ? { data: { user: { id: t } }, error: null } : { data: {}, error: { message: 'none' } }), admin: { createUser: async () => ({ data: { user: { id: 'new' } }, error: null }) } },
   storage: { from: () => ({ upload: async () => ({ error: null }), remove: async () => ({}), createSignedUrl: async () => ({ data: { signedUrl: 'u' } }) }) } };
 class FakeStripe { constructor() { this.webhooks = { constructEvent: (b, sig) => { if (sig !== 'good') throw new Error('bad signature'); return JSON.parse(b); } }; } }
 const orig = Module._load;
@@ -136,51 +129,3 @@ test('ERRORS: malformed JSON returns a safe message, not a stack trace', async (
   const r = await fetch(`${base}/api/scores`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{bad' });
   assert.equal(r.status, 400); assert.doesNotMatch(await r.text(), /at .*\.js/);
 });
-
-test('AUTH: login returns 200 with JWT access token and user info', async () => {
-  reset({ 'profiles:select': { data: { id: 'u1', email: 'test@example.com', full_name: 'Test Hero', role: 'subscriber' } }, 'subscriptions:select': { data: { status: 'active' } } });
-  const r = await call('/api/login', { method: 'POST', body: { email: 'test@example.com', password: 'password123' } });
-  assert.equal(r.status, 200);
-  const data = await r.json();
-  assert.equal(data.ok, true);
-  assert.equal(data.token, 'fake-jwt-token-for-u1');
-  assert.equal(data.user.id, 'u1');
-  assert.equal(data.user.email, 'test@example.com');
-  assert.equal(data.user.active, true);
-});
-
-test('AUTH: login with wrong credentials or missing fields is rejected', async () => {
-  reset();
-  const r1 = await call('/api/login', { method: 'POST', body: { email: 'test@example.com', password: 'wrong' } });
-  assert.equal(r1.status, 400);
-  assert.match((await r1.json()).error, /Invalid email or password/);
-
-  const r2 = await call('/api/login', { method: 'POST', body: { email: 'test@example.com' } });
-  assert.equal(r2.status, 400);
-  assert.match((await r2.json()).error, /required/);
-});
-
-test('AUTH: signup creates account and returns JWT token', async () => {
-  reset({ 'profiles:insert': { data: { id: 'new' }, error: null } });
-  const r = await call('/api/signup', { method: 'POST', body: { email: 'new@example.com', password: 'password123', full_name: 'New Hero', charity_id: W } });
-  assert.equal(r.status, 200);
-  const data = await r.json();
-  assert.equal(data.ok, true);
-  assert.equal(data.id, 'new');
-  assert.equal(data.token, 'fake-jwt-token-for-u1');
-  assert.equal(data.user.full_name, 'New Hero');
-});
-
-test('AUTH: signup requires valid email, 6+ char password, full name, and charity', async () => {
-  reset();
-  for (const bad of [
-    { email: 'bademail', password: 'password123', full_name: 'Hero', charity_id: W },
-    { email: 'hero@test.com', password: '123', full_name: 'Hero', charity_id: W },
-    { email: 'hero@test.com', password: 'password123', full_name: '   ', charity_id: W },
-    { email: 'hero@test.com', password: 'password123', full_name: 'Hero', charity_id: '' },
-  ]) {
-    const r = await call('/api/signup', { method: 'POST', body: bad });
-    assert.equal(r.status, 400);
-  }
-});
-

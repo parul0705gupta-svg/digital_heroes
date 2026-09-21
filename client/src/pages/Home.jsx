@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { api } from '../api';
 
 const balls = [7, 19, 24, 33, 41];
-const split = [['Prize pool', 50, 'var(--accent)'], ['Your charity (minimum)', 10, 'var(--brand)'], ['Platform and payment costs', 40, 'var(--line)']];
+const split = [['Prize pool', 50, 'var(--brand)'], ['Your charity (minimum)', 10, 'var(--accent)'], ['Platform and payment costs', 40, 'var(--line-strong)']];
 const steps = [['01', 'Subscribe', 'Choose monthly, or yearly at a discount. At least 10% of your fee goes to the charity you pick.'],
   ['02', 'Log your scores', 'Keep your latest five Stableford scores, each from 1 to 45. A new score replaces your oldest.'],
   ['03', 'Match the draw', 'Every month five numbers are drawn. Match 3, 4 or 5 of them to win a share of the prize pool.']];
