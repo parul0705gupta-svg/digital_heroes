@@ -17,7 +17,7 @@ export default function App() {
         {me && <Link to="/dashboard">Dashboard</Link>}
         {me?.role === 'admin' && <Link to="/admin">Admin</Link>}
         {me ? <button className="link" onClick={out}>Log out</button> : <Link to="/login">Log in</Link>}
-        {!me && <Link to="/signup" className="btn sm">Join now</Link>}
+        {!me && <Link to="/signup" className="btn sm">Sign up</Link>}
       </nav></header>
     <main>
       <Routes>
@@ -26,8 +26,12 @@ export default function App() {
         <Route path="/dashboard" element={me ? <Dashboard /> : <Navigate to="/login" />} />
         <Route path="/admin" element={me?.role === 'admin' ? <Admin /> : <Navigate to="/" />} />
       </Routes></main>
-    <footer><div><Link to="/" className="logo">digital<b>heroes</b></Link><p>Play a round. Fund a cause.</p></div>
-      <div className="fl"><Link to="/charities">Charities</Link><Link to="/pricing">Pricing</Link><Link to="/signup">Join now</Link></div>
-      <small>A share of every subscription goes to the charity you choose.</small></footer>
+    <footer>
+      <div className="fgrid">
+        <div><Link to="/" className="logo">digital<b>heroes</b></Link><p>Play a round. Fund a cause. A share of every subscription goes to the charity you choose.</p></div>
+        <div className="fl"><h4>Platform</h4><Link to="/charities">Charities</Link><Link to="/pricing">Pricing</Link></div>
+        <div className="fl"><h4>Account</h4>{me ? <><Link to="/dashboard">Dashboard</Link><button className="link" onClick={out}>Log out</button></> : <><Link to="/login">Log in</Link><Link to="/signup">Sign up</Link></>}</div>
+      </div>
+      <div className="fbar"><span>© 2026 Digital Heroes</span><span>Stableford scores, monthly draws, real impact.</span></div></footer>
   </>);
 }
